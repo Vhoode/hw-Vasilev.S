@@ -1,5 +1,16 @@
 package main
 
+import (
+	"fmt"
+
+	"golang.org/x/example/hello/reverse"
+)
+
 func main() {
-	// Place your code here.
+	s := "Hello, OTUS!"
+	fmt.Println(revertWord(s))
+}
+
+func revertWord(s string) string {
+	return reverse.String(s)
 }
