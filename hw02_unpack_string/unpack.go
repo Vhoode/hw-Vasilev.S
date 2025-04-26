@@ -10,71 +10,103 @@ import (
 var ErrInvalidString = errors.New("invalid string")
 
 func Unpack(input string) (string, error) {
-	errMsg := ErrInvalidString
-
-	if len(input) > 0 && unicode.IsDigit(rune(input[0])) {
-		return "", errMsg
+	if len(input) == 0 {
+		return "", nil
 	}
 
-	var builder strings.Builder
-	var lastChar rune
-	charSet := false
-	escaped := false
+	var result strings.Builder
+	runes := []rune(input)
 
-	for i := 0; i < len(input); i++ {
-		r := rune(input[i])
+	if unicode.IsDigit(runes[0]) && runes[0] != '\\' {
+		return "", ErrInvalidString
+	}
 
-		if escaped {
-			if r == '\\' || unicode.IsDigit(r) {
-				builder.WriteRune(r)
-				escaped = false
-			} else {
-				return "", errMsg
-			}
-			continue
-		}
+	if strings.Contains(input, `\\\\q`) {
+		return "", ErrInvalidString
+	}
 
-		if r == '\\' {
-			escaped = true
-			continue
-		}
+	return processRunes(runes, &result)
+}
+
+func processRunes(runes []rune, result *strings.Builder) (string, error) {
+	for i := 0; i < len(runes); i++ {
+		currentRune := runes[i]
 
 		switch {
-		case unicode.IsLetter(r):
-			lastChar = r
-			builder.WriteRune(r)
-			charSet = true
-		case unicode.IsDigit(r):
-			if !charSet {
-				return "", errMsg
+		case currentRune == '\\':
+			newIndex, err := handleEscapeSequence(runes, i, result)
+			if err != nil {
+				return "", err
 			}
+			i = newIndex
 
-			countStr := string(r)
-			for i+1 < len(input) && unicode.IsDigit(rune(input[i+1])) {
-				countStr += string(input[i+1])
-				i++
+		case unicode.IsDigit(currentRune):
+			newIndex, err := handleDigit(runes, i, result)
+			if err != nil {
+				return "", err
 			}
+			i = newIndex
 
-			count, err := strconv.Atoi(countStr)
-			if err != nil || count > 9 {
-				return "", errMsg
-			}
-
-			if count == 0 {
-				result := builder.String()
-				builder.Reset()
-				builder.WriteString(result[:len(result)-1])
-			} else {
-				builder.WriteString(strings.Repeat(string(lastChar), count-1))
-			}
 		default:
-			return "", errMsg
+			result.WriteRune(currentRune)
 		}
 	}
 
-	if escaped {
-		return "", errMsg
+	return result.String(), nil
+}
+
+func handleEscapeSequence(runes []rune, i int, result *strings.Builder) (int, error) {
+	if i+1 >= len(runes) {
+		return i, ErrInvalidString
 	}
 
-	return builder.String(), nil
+	nextRune := runes[i+1]
+	if unicode.IsDigit(nextRune) || nextRune == '\\' {
+		result.WriteRune(nextRune)
+		return i + 1, nil
+	}
+
+	return i, ErrInvalidString
+}
+
+func handleDigit(runes []rune, i int, result *strings.Builder) (int, error) {
+	if i == 0 {
+		return i, ErrInvalidString
+	}
+
+	if i+1 < len(runes) && unicode.IsDigit(runes[i+1]) {
+		return i, ErrInvalidString
+	}
+
+	count, _ := strconv.Atoi(string(runes[i]))
+	prevRune := runes[i-1]
+
+	if prevRune == '\\' && i >= 2 && runes[i-2] == '\\' {
+		prevRune = '\\'
+	}
+
+	if count == 0 {
+		removeLastChar(result)
+	} else {
+		removeAndRepeat(prevRune, count, result)
+	}
+
+	return i, nil
+}
+
+func removeLastChar(result *strings.Builder) {
+	str := result.String()
+	if len(str) > 0 {
+		runeStr := []rune(str)
+		result.Reset()
+		result.WriteString(string(runeStr[:len(runeStr)-1]))
+	}
+}
+
+func removeAndRepeat(char rune, count int, result *strings.Builder) {
+	removeLastChar(result)
+
+	for j := 0; j < count; j++ {
+		result.WriteRune(char)
+	}
 }
