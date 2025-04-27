@@ -11,7 +11,6 @@ type WordCount struct {
 }
 
 func Top10(text string) []string {
-
 	words := strings.Fields(text)
 
 	wordsMap := make(map[string]int)
@@ -20,7 +19,7 @@ func Top10(text string) []string {
 		wordsMap[word]++
 	}
 
-	var wordCounts []WordCount
+	wordCounts := make([]WordCount, 0, len(wordsMap))
 	for word, count := range wordsMap {
 		wordCounts = append(wordCounts, WordCount{Word: word, Count: count})
 	}
